@@ -109,8 +109,8 @@
                 }
                 ;
             else if (e && SharedWorker) {
-                if (!e.startsWith("/") && !e.includes("://"))
-                    throw new Error("Invalid URL. Must be absolute or start at the root.");
+                // if (!e.startsWith("/") && !e.includes("://"))
+                //     throw new Error("Invalid URL. Must be absolute or start at the root.");
                 this.port = l(e, t),
                 console.debug("bare-mux: setting localStorage bare-mux-path to", e),
                 a["bare-mux-path"] = e

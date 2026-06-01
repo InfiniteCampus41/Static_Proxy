@@ -54,13 +54,13 @@ const headerHTML = `
         </div>
         <div id="header-center">
             <a href="index.html">
-                <img src="/res/logo.svg" id="logo">
+                <img src="./res/logo.svg" id="logo">
             </a>
         </div>
     </header>
     <div id="mobileSidePanel" class="themed">
         <a id="lgbtn" href="index.html">
-            <img src="/res/logo.svg" id="logo" style="width:fit-content; margin-bottom:-60px; display:block;">
+            <img src="./res/logo.svg" id="logo" style="width:fit-content; margin-bottom:-60px; display:block;">
         </a>
         <button id="closeMobilePanel" class="darkbuttons">
             <i class="ic ic-x-lg">
