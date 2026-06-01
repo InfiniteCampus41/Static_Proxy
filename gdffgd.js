@@ -1,0 +1,545 @@
+"use strict";
+/** @param {string} input */
+/** @param {string} template */
+/** @returns {string} */
+const form = document.getElementById("sj-form");
+const addressBar = document.getElementById("sj-address");
+const searchEngine = document.getElementById("sj-search-engine");
+const error = document.getElementById("sj-error");
+const ggfErr = document.getElementById("ggfErr");
+const errorCode = document.getElementById("sj-error-code");
+const tabsContainer = document.getElementById("tabs");
+const content = document.getElementById("content");
+const backBtn = document.getElementById("nav-back");
+const forwardBtn = document.getElementById("nav-forward");
+const reloadBtn = document.getElementById("nav-reload");
+const stockSW = "./sw.js";
+const working = document.getElementById("workingggf");
+const broken = document.getElementById("brokenggf");
+let fullscreenBtn = null;
+let isFullscreen = false;
+let scramjet = null;
+if (typeof $scramjetLoadController !== "undefined") {
+    const { ScramjetController } = $scramjetLoadController();
+    scramjet = new ScramjetController({
+        files: {
+            wasm: `https://${n}/scram/scramjet.wasm.wasm`,
+            all: `https://${n}/scram/scramjet.all.js`,
+            sync: `https://${n}/scram/scramjet.sync.js`,
+        },
+    });
+    scramjet.init();
+}
+const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
+let blockedUrls = [];
+async function loadBlockedUrls() {
+    try {
+        const res = await fetch(`https://${n}/edit-urls`);
+        if (!res.ok) throw new Error("Failed To Fetch URLs");
+        const data = await res.json();
+        blockedUrls = Object.entries(data).map(([url, reason]) => ({
+            url,
+            reason
+        }));
+    } catch {
+        blockedUrls = [];
+    }
+}
+async function registerSW() {
+	if (!navigator.serviceWorker) {
+		throw new Error("Service Workers Cannot Be Registered Without https.");
+		throw new Error("Your Browser Doesn't Support Service Workers.");
+	}
+	await navigator.serviceWorker.register(stockSW);
+}
+function getBaseDomain(input) {
+    try {
+        const u = new URL(input.startsWith("http") ? input : "https://" + input);
+        return u.hostname.toLowerCase();
+    } catch {
+        return "";
+    }
+}
+function search(input, template) {
+	try {
+		return new URL(input).toString();
+	} catch (err) {
+	}
+	try {
+		const url = new URL(`http://${input}`);
+		if (url.hostname.includes(".")) return url.toString();
+	} catch (err) {
+	}
+	return template.replace("%s", encodeURIComponent(input));
+}
+function checkBlocked(inputUrl) {
+    const domain = getBaseDomain(inputUrl);
+    for (const entry of blockedUrls) {
+        const blockedDomain = getBaseDomain(entry.url);
+        if (domain === blockedDomain) {
+            return entry.reason || "Blocked.";
+        }
+    }
+    return null;
+}
+loadBlockedUrls();
+let tabs = [];
+let activeTabId = null;
+let tabCounter = 0;
+const newTabBtn = document.createElement("div");
+newTabBtn.className = "chrome-newtab";
+newTabBtn.innerHTML = `<i class="ic ic-plus" title="New Tab"></i>`;
+tabsContainer.appendChild(newTabBtn);
+newTabBtn.addEventListener("click", () => {
+    createTab(true);
+});
+function createTab(isNTP = false) {
+    const id = "tab-" + (++tabCounter);
+    const tabBtn = document.createElement("div");
+    tabBtn.className = "chrome-tab opening";
+    tabBtn.innerHTML = `
+        <img class="tab-favicon" src="" style="width:16px;height:16px;margin-right:6px;display:none;">
+        <span class="tab-title">${isNTP ? "New Tab" : "Loading..."}</span>
+        <i class="ic ic-x close-tab" title="Close Tab"></i>
+    `;
+    tabsContainer.insertBefore(tabBtn, newTabBtn);
+    requestAnimationFrame(() => {
+        tabBtn.classList.remove("opening");
+        tabBtn.classList.add("active");
+    });
+    let frame = null;
+    let frameObj = null;
+    const tabData = {
+        id,
+        tabBtn,
+        frame,
+        frameObj,
+        isNTP,
+        displayUrl: "",
+        isLoading: false
+    };
+    tabs.push(tabData);
+    if (!isNTP) {
+        frameObj = scramjet.createFrame();
+        frame = frameObj.frame;
+        frame.id = id;
+        frame.className = "tab-frame";
+        frame.style.display = "none";
+        content.appendChild(frame);
+        attachFrameLoadEvents(tabData);
+        startUrlWatcher(tabData);
+    }
+    tabBtn.addEventListener("click", (e) => {
+        if (e.target.classList.contains("close-tab")) return;
+        switchTab(id);
+    });
+    tabBtn.querySelector(".close-tab").addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeTab(id);
+    });
+    switchTab(id);
+    return tabData;
+}
+function attachFrameLoadEvents(tab) {
+    if (!tab.frame) return;
+    tab.frame.addEventListener("loadstart", () => {
+        tab.isLoading = true;
+        if (tab.id === activeTabId) showggfLoader();
+    });
+    tab.frame.addEventListener("beforeunload", () => {
+        tab.isLoading = true;
+        if (tab.id === activeTabId) showggfLoader();
+    });
+    tab.frame.addEventListener("load", () => {
+        tab.isLoading = false;
+        if (tab.id === activeTabId) hideggfLoader();
+    });
+}
+function switchTab(id) {
+    activeTabId = id;
+    tabs.forEach(t => {
+        if (t.frame) {
+            t.frame.classList.remove("active-frame");
+            setTimeout(() => {
+                t.frame.style.display = "none";
+            }, 200);
+        }
+        t.tabBtn.classList.remove("active");
+    });
+    const tab = tabs.find(t => t.id === id);
+    if (!tab) return;
+    tab.tabBtn.classList.add("active");
+    const ntp = document.getElementById("ntp");
+    if (tab.isNTP) {
+        if (ntp) ntp.style.display = "flex";
+        addressBar.value = '';
+        if (fullscreenBtn) {
+            fullscreenBtn.style.display = "none";
+        }
+    } else {
+        if (ntp) ntp.style.display = "none";
+        if (tab.frame) {
+            tab.frame.style.display = "block";
+            requestAnimationFrame(() => {
+                tab.frame.classList.add("active-frame");
+            });
+            if (fullscreenBtn) {
+                fullscreenBtn.style.display = "block";
+            } else {
+                createFullscreenButton();
+            }
+        }    
+    }
+    if (!tab.isNTP) {
+        if (fullscreenBtn) {
+            fullscreenBtn.style.display = "block";
+        } else {
+            createFullscreenButton();
+        }
+        addressBar.value = tab.displayUrl || "";
+        if (tab.isLoading) {
+            showggfLoader();
+        } else {
+            hideggfLoader();
+        }
+    } else {
+        hideggfLoader();
+    }
+}
+function decodeScramjetUrl(purl) {
+    try {
+        const url = new URL(purl);
+        const parts = url.pathname.split("/scramjet/");
+        if (parts.length > 1) {
+            return decodeURIComponent(parts[1]);
+        }
+        return purl;
+    } catch {
+        return purl;
+    }
+}
+function startUrlWatcher(tab) {
+    if (!tab.frame) return;
+    let lastUrl = "";
+    setInterval(() => {
+        if (!tab.frame || !tab.frame.contentWindow) return;
+        try {
+            const currentpurl = tab.frame.contentWindow.location.href;
+            if (currentpurl !== lastUrl) {
+                lastUrl = currentpurl;
+                const realUrl = decodeScramjetUrl(currentpurl);
+                tab.displayUrl = realUrl;
+                if (tab.id === activeTabId) {
+                    addressBar.value = realUrl;
+                }
+            }
+        } catch {}
+    }, 300);
+}
+function closeTab(id) {
+    const index = tabs.findIndex(t => t.id === id);
+    if (index === -1) return;
+    const tab = tabs[index];
+    tab.tabBtn.classList.add("closing");
+    setTimeout(() => {
+        tab.tabBtn.remove();
+        if (tab.frame) {
+            tab.frame.remove();
+        }
+        tabs.splice(index, 1);
+        if (tabs.length === 0) {
+            createTab(true);
+        } else {
+            switchTab(tabs[Math.max(0, index - 1)].id);
+        }
+    }, 250);
+    if (tabs.length === 0) {
+        createTab(true);
+    } else {
+        switchTab(tabs[Math.max(0, index - 1)].id);
+    }
+}
+function createFullscreenButton() {
+    if (fullscreenBtn) return;
+    fullscreenBtn = document.createElement("button");
+    fullscreenBtn.innerHTML = `<i class="ic ic-fullscreen"></i>`;
+    fullscreenBtn.style.position = "fixed";
+    fullscreenBtn.style.bottom = "40px";
+    fullscreenBtn.style.right = "20px";
+    fullscreenBtn.style.zIndex = "9999";
+    fullscreenBtn.classList = 'button';
+    fullscreenBtn.addEventListener("click", toggleFullscreen);
+    document.body.appendChild(fullscreenBtn);
+}
+function toggleFullscreen() {
+    const tab = getActiveTab();
+    if (!tab || !tab.frame) return;
+    if (!document.fullscreenElement) {
+        tab.frame.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+    } else {
+        document.exitFullscreen();
+    }
+}
+document.addEventListener("fullscreenchange", () => {
+    const tab = getActiveTab();
+    if (!tab) return;
+    if (document.fullscreenElement) {
+        isFullscreen = true;
+        if (fullscreenBtn) fullscreenBtn.innerHTML = `<i class="ic ic-fullscreen-exit"></i>`;
+        tab.frame.style.width = "100vw";
+        tab.frame.style.height = "100vh";
+    } else {
+        isFullscreen = false;
+        if (fullscreenBtn) fullscreenBtn.innerHTML = `<i class="ic ic-fullscreen"></i>`;
+        tab.frame.style.width = "";
+        tab.frame.style.height = "";
+    }
+});
+async function loadIntoActiveTab(input) {
+    if (!activeTabId) return;
+    const reason = checkBlocked(input);
+    if (reason) {
+        ggfErr.style.display = "block";
+        error.textContent = "Error";
+        errorCode.textContent = `Error Code: ${reason}`;
+        return;
+    }
+    const tab = tabs.find(t => t.id === activeTabId);
+    if (!tab) return;
+    if (tab.isNTP) {
+        tab.isNTP = false;
+        if (fullscreenBtn) {
+            fullscreenBtn.style.display = "block";
+        } else {
+            createFullscreenButton();
+        }
+        tab.frameObj = scramjet.createFrame();
+        tab.frame = tab.frameObj.frame;
+        tab.frame.id = tab.id;
+        tab.frame.className = "tab-frame";
+        tab.frame.style.display = "block";
+        content.appendChild(tab.frame);
+        attachFrameLoadEvents(tab);
+        document.getElementById("ntp").style.display = "none";
+        startUrlWatcher(tab);
+    } else {
+        createFullscreenButton();
+    }
+    try {
+        await registerSW();
+    } catch (err) {
+        ggfErr.style.display = "block";
+        error.textContent = "Service Worker failed.";
+        errorCode.textContent = err.toString();
+        hideggfLoader();
+        return;
+    }
+    let wispUrl =
+        (location.protocol === "http:" ? "wss" : "ws") +
+        "://" +
+        "www.infinitecampus.xyz" +
+        "/wisp/";
+    console.log("connection", connection);
+    console.log("worker path", "/baremux/worker.js");
+    if ((await connection.getTransport()) !== "/libcurl/index.mjs") {
+        await connection.setTransport("/libcurl/index.mjs", [
+            { websocket: wispUrl },
+        ]);
+    }
+    tab.displayUrl = input;
+    addressBar.value = input;
+    const url = search(input, searchEngine.value);
+    tab.tabBtn.querySelector(".tab-title").textContent = "Loading...";
+    tab.isLoading = true;
+    showggfLoader();
+    tab.frame.onload = null;
+    tab.frame.onload = () => {
+        try {
+            const doc = tab.frame.contentDocument || tab.frame.contentWindow.document;
+            const pageTitle = doc.title || getBaseDomain(input);
+            const titleElement = tab.tabBtn.querySelector(".tab-title");
+            titleElement.textContent = pageTitle;
+            tab.tabBtn.title = `${pageTitle}`;
+            let icon = doc.querySelector("link[rel~='icon']");
+            const faviconImg = tab.tabBtn.querySelector(".tab-favicon");
+            if (icon && icon.href) {
+                faviconImg.src = icon.href;
+                faviconImg.style.display = "inline-block";
+            } else {
+                const fallback = new URL(input.startsWith("http") ? input : "https://" + input);
+                faviconImg.src = fallback.origin + "/favicon.ico";
+                faviconImg.style.display = "inline-block";
+            }
+        } catch (err) {
+            const fallbackTitle = getBaseDomain(input);
+            const titleElement = tab.tabBtn.querySelector(".tab-title");
+            titleElement.textContent = fallbackTitle;
+            tab.tabBtn.title = `${fallbackTitle}`
+        }
+        if (!tab.isNTP) {
+            createFullscreenButton();
+        }    
+    };
+    tab.frameObj.go(url);
+}
+form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await loadIntoActiveTab(addressBar.value);
+});
+function updateClock() { 
+    const now = new Date(); 
+    let hours = now.getHours(); 
+    const minutes = now.getMinutes().toString().padStart(2, "0"); 
+    const ampm = hours >= 12 ? "PM" : "AM"; 
+    hours = hours % 12; 
+    hours = hours ? hours : 12;
+    document.getElementById("ggfTime").textContent = `${hours}:${minutes}${ampm}`; 
+    const options = { weekday: "long", year: "numeric", month: "long", day: "numeric" }; 
+    document.getElementById("ggfDate").textContent = now.toLocaleDateString(undefined, options);
+} 
+setInterval(updateClock, 1000); 
+updateClock(); 
+let isGB = 0;
+let btMsg = 'Hello';
+if ("getBattery" in navigator) {
+    navigator.getBattery().then(function(battery) {
+        function updateBattery() {
+            const batteryPer = Math.round(battery.level * 100);
+            btMsg = `I'm Going To Guess Your Battery Percentage, Is It ${batteryPer}%? Knew It`;
+            if (batteryPer <= 20 && !battery.charging) {
+                btMsg = `Charge Your Device, Its At ${batteryPer}%`;
+                isGB = 1;
+            }
+            if (battery.charging && isGB === 1) {
+                btMsg = `Good Boy. Charging, ${batteryPer}%`;
+                isGB = 0;
+            }
+            const phraseEl = document.getElementById("phrase");
+            if (phraseEl.textContent.includes("Charge Your Device") ||
+                phraseEl.textContent.includes("Battery Percentage") ||
+                phraseEl.textContent.includes("Charging")) {
+                phraseEl.textContent = btMsg;
+            }
+        }
+        updateBattery();
+        battery.addEventListener("levelchange", updateBattery);
+        battery.addEventListener("chargingchange", updateBattery);
+        setRandomPhrase();
+    });
+}
+const hosturl = window.location.host;
+function setRandomPhrase() { 
+    const phrases = [ 
+        "Walking By The Wall",
+        "The Shadows Will Not Fall",
+        "Is Silently Ignored",
+        "Discouraged By The Noise",
+        "Living Without Choice",
+        "Is A Life Without A Voice",
+        "When You Can't Even Say My Name",
+        "Has The Memory Gone? Are You Feeling Numb?",
+        "Go On, Call My Name",
+        "I Can't Play This Game, So I Ask Again",
+        "Will You Say My Name?",
+        "Has The Memory Gone? Are You Feeling Numb?",
+        "Or Have I Become Invisible?",
+        "The Dreamers Wish Away",
+        "Its Falling On My Face",
+        "The Shape Of My Disgrace",
+        "When You Don't Hear A Word I Say",
+        "As The Talking Goes, It's A One-Way Flow",
+        "No Fault, No Blame",
+        "Has The Memory Gone? Are You Feelin' Numb?",
+        "And Have I Become Invisible?",
+        "No One Hears A Word They Say",
+        "Has The Memory Gone? Are You Feelin' Numb?",
+        "Not A Word They Say",
+        "But A Voiceless Crowd Isn't Backin' Down",
+        "When The Air Turns Red",
+        "With A Loaded Hesitation",
+        "Can You Say My Name?",
+        "Has The Memory Gone? Are You Feelin' Numb?",
+        "Have We All Become Invisible?",
+        "Made By Hacker41", 
+        "AAAAAAAAAAAAAAAAAAAA", 
+        "The Teacher's Bane", 
+        "Enemy Of The Principal", 
+        "Diddiling Other Proxies", 
+        "What The Sigma!?", 
+        "[Insert Joke Here]", 
+        "JESSE We Need To Cook NOW", 
+        "Please Speed I Need This", 
+        "Speed, I Am Formerly Requesting Aid Of The Finacial Form, As My Mother Has No Humble Abode", 
+        "Kachow - Lightning McQueen", 
+        "Dont Believe Everything You See On The Internet - Abraham Lincoln",
+        `Greetings, Person On ${hosturl}`,
+        "Loading Virus.exe",
+        "Nitrix67 Likes Men",
+        "Life Is A Highway",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        `${btMsg}`,
+        "https://discord.gg/4d9hJSVXca",
+        "Kim Jong Un Is Master Of Goon",
+        "Rest In Peace My Granny She Got Hit By A Bazooka",
+        "Yeah, I think about her every time I hit the hookah",
+        "Kaboom, Kablow, Kaboom",
+        "I Was In My Room Trying To Teach My Little Sister",
+        "Then I Heard A Boom And It Sounded Like A Missle",
+        "Who That Is, What That Was",
+        "Oh That Granny, Oh She Done",
+        "I Was In The Matrix, But The Matrix Was Too Slow So I Had To Come Here",
+        "What Is This Diddyblud Doin On The Calculator"
+    ]; 
+    const random = phrases[Math.floor(Math.random() * phrases.length)];
+    document.getElementById("phrase").textContent = random; 
+} 
+function getActiveTab() {
+    return tabs.find(t => t.id === activeTabId);
+}
+backBtn.addEventListener("click", () => {
+    const tab = getActiveTab();
+    if (tab && tab.frameObj) {
+        showggfLoader();
+        try {
+            tab.frameObj.back();
+        } catch {}
+    }
+});
+forwardBtn.addEventListener("click", () => {
+    const tab = getActiveTab();
+    if (tab && tab.frameObj) {
+        showggfLoader();
+        try {
+            tab.frameObj.forward();
+        } catch {}
+    }
+});
+reloadBtn.addEventListener("click", () => {
+    const tab = getActiveTab();
+    if (tab && tab.frameObj) {
+        showggfLoader();
+        try {
+            tab.frameObj.reload();
+        } catch {}
+    }
+});
+setRandomPhrase();
+document.querySelectorAll("#ggfApps div").forEach(app => {
+    app.addEventListener("click", async () => {
+        const url = app.getAttribute("data-url");
+        if (!url) return;
+        if (!activeTabId) {
+            createTab(true);
+        }
+        await loadIntoActiveTab(url);
+    });
+});
+createTab(true);
+document.addEventListener("DOMContentLoaded", function () {
+    if (!scramjet) {
+        working.style.display = "none";
+        broken.style.display = "block";
+    }
+});
