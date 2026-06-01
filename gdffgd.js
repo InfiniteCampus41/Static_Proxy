@@ -22,6 +22,7 @@ let scramjet = null;
 if (typeof $scramjetLoadController !== "undefined") {
     const { ScramjetController } = $scramjetLoadController();
     scramjet = new ScramjetController({
+        prefix: "./scramjet/",
         files: {
             wasm: `https://${n}/scram/scramjet.wasm.wasm`,
             all: `https://${n}/scram/scramjet.all.js`,
