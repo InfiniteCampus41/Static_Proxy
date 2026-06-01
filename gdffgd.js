@@ -343,8 +343,8 @@ async function loadIntoActiveTab(input) {
         "/wisp/";
     console.log("connection", connection);
     console.log("worker path", "./baremux/worker.js");
-    if ((await connection.getTransport()) !== "./libcurl/index.mjs") {
-        await connection.setTransport("./libcurl/index.mjs", [
+    if ((await connection.getTransport()) !== "/libcurl/index.mjs") {
+        await connection.setTransport("/libcurl/index.mjs", [
             { websocket: wispUrl },
         ]);
     }
