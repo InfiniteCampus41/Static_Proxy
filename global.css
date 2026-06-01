@@ -19,7 +19,7 @@ a {
     color: white;
 }
 body {
-    background-image:url('/res/bg.png');
+    background-image:url('./res/bg.png');
 }
 .btxt {
     color:white;
@@ -573,47 +573,47 @@ i {
     content: "";
 }
 .ic-archive {
-    mask-image: url('/archive.svg');
-    -webkit-mask-image: url('/archive.svg');
+    mask-image: url('./archive.svg');
+    -webkit-mask-image: url('./archive.svg');
 }
 .ic-arrow-clockwise {
-    mask-image: url('/arrow-clockwise.svg');
-    -webkit-mask-image: url('/arrow-clockwise.svg');
+    mask-image: url('./arrow-clockwise.svg');
+    -webkit-mask-image: url('./arrow-clockwise.svg');
 }
 .ic-arrow-left {
-    mask-image: url('/arrow-left.svg');
-    -webkit-mask-image: url('/arrow-left.svg');
+    mask-image: url('./arrow-left.svg');
+    -webkit-mask-image: url('./arrow-left.svg');
 }
 .ic-arrow-right {
-    mask-image: url('/arrow-right.svg');
-    -webkit-mask-image: url('/arrow-right.svg');
+    mask-image: url('./arrow-right.svg');
+    -webkit-mask-image: url('./arrow-right.svg');
 }
 .ic-fullscreen-exit {
-    mask-image: url('/fullscreen-exit.svg');
-    -webkit-mask-image: url('/fullscreen-exit.svg');
+    mask-image: url('./fullscreen-exit.svg');
+    -webkit-mask-image: url('./fullscreen-exit.svg');
 }
 .ic-fullscreen {
-    mask-image: url('/fullscreen.svg');
-    -webkit-mask-image: url('/fullscreen.svg');
+    mask-image: url('./fullscreen.svg');
+    -webkit-mask-image: url('./fullscreen.svg');
 }
 .ic-list {
-    mask-image: url('/list.svg');
-    -webkit-mask-image: url('/list.svg');
+    mask-image: url('./list.svg');
+    -webkit-mask-image: url('./list.svg');
 }
 .ic-plus {
-    mask-image: url('/plus.svg');
-    -webkit-mask-image: url('/plus.svg');
+    mask-image: url('./plus.svg');
+    -webkit-mask-image: url('./plus.svg');
 }
 .ic-x {
-    mask-image: url('/x.svg');
-    -webkit-mask-image: url('/x.svg');
+    mask-image: url('./x.svg');
+    -webkit-mask-image: url('./x.svg');
 }
 .ic-x-circle {
-    mask-image: url('/x-circle.svg');
-    -webkit-mask-image: url('/x-circle.svg');
+    mask-image: url('./x-circle.svg');
+    -webkit-mask-image: url('./x-circle.svg');
 }
 .ic-x-lg {
-    mask-image: url('/x-lg.svg');
-    -webkit-mask-image: url('/x-lg.svg');
+    mask-image: url('./x-lg.svg');
+    -webkit-mask-image: url('./x-lg.svg');
     font-size:large;
 }

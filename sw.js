@@ -54,7 +54,7 @@ self.addEventListener("notificationclick", function(event) {
         })
     );
 });
-importScripts("/urls.js");
+importScripts("./urls.js");
 importScripts(`${y}`);
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();

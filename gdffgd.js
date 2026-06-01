@@ -30,7 +30,7 @@ if (typeof $scramjetLoadController !== "undefined") {
     });
     scramjet.init();
 }
-const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
+const connection = new BareMux.BareMuxConnection("./baremux/worker.js");
 let blockedUrls = [];
 async function loadBlockedUrls() {
     try {
@@ -342,9 +342,9 @@ async function loadIntoActiveTab(input) {
         "www.infinitecampus.xyz" +
         "/wisp/";
     console.log("connection", connection);
-    console.log("worker path", "/baremux/worker.js");
-    if ((await connection.getTransport()) !== "/libcurl/index.mjs") {
-        await connection.setTransport("/libcurl/index.mjs", [
+    console.log("worker path", "./baremux/worker.js");
+    if ((await connection.getTransport()) !== "./libcurl/index.mjs") {
+        await connection.setTransport("./libcurl/index.mjs", [
             { websocket: wispUrl },
         ]);
     }
