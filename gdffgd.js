@@ -487,7 +487,7 @@ function setRandomPhrase() {
         "Life Is A Highway",
         "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         `${btMsg}`,
-        "https://discord.gg/4d9hJSVXca",
+        "https://discord.gg/Fq2gUZvRr3",
         "Kim Jong Un Is Master Of Goon",
         "Rest In Peace My Granny She Got Hit By A Bazooka",
         "Yeah, I think about her every time I hit the hookah",
